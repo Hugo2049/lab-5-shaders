@@ -318,6 +318,201 @@ fn gas_giant_shader(fragment: &Fragment) -> Color {
     )
 }
 
+// Shader 4: Ice Giant (Neptune-like)
+fn ice_giant_shader(fragment: &Fragment) -> Color {
+    // Layer 1: Base blue-cyan gradient
+    let base_color1 = Color::from_float(0.2, 0.4, 0.8);
+    let base_color2 = Color::from_float(0.1, 0.6, 0.9);
+    let base_color3 = Color::from_float(0.3, 0.7, 1.0);
+    
+    // Layer 2: Atmospheric bands (less pronounced than Jupiter)
+    let band_frequency = 12.0;
+    let band = (fragment.position.y * band_frequency + fragment.time * 0.3).sin() * 0.5 + 0.5;
+    
+    let base_color = if band < 0.33 {
+        base_color1.mix(&base_color2, band * 3.0)
+    } else if band < 0.66 {
+        base_color2.mix(&base_color3, (band - 0.33) * 3.0)
+    } else {
+        base_color3.mix(&base_color1, (band - 0.66) * 3.0)
+    };
+    
+    // Layer 3: Wispy clouds and storms
+    let cloud_pos = Vec3::new(
+        fragment.position.x * 4.0 + fragment.time * 0.15,
+        fragment.position.y * 8.0,
+        fragment.position.z * 4.0,
+    );
+    let clouds = fbm(&cloud_pos, 4);
+    
+    // Layer 4: Dark spot (like Neptune's Great Dark Spot)
+    let spot_center = Vec3::new(-0.4, 0.3, 0.7);
+    let dist_to_spot = fragment.position.sub(&spot_center).length();
+    let spot_size = 0.2;
+    let spot_intensity = if dist_to_spot < spot_size {
+        ((1.0 - dist_to_spot / spot_size) * PI / 2.0).cos().powf(2.0)
+    } else {
+        0.0
+    };
+    let spot_color = Color::from_float(0.1, 0.2, 0.4);
+    
+    let mut final_color = base_color;
+    
+    // Apply clouds
+    let cloud_influence = clouds * 0.15;
+    final_color = Color::from_float(
+        (final_color.r as f32 / 255.0 + cloud_influence).clamp(0.0, 1.0),
+        (final_color.g as f32 / 255.0 + cloud_influence).clamp(0.0, 1.0),
+        (final_color.b as f32 / 255.0 + cloud_influence * 0.8).clamp(0.0, 1.0),
+    );
+    
+    // Apply dark spot
+    final_color = final_color.mix(&spot_color, spot_intensity * 0.6);
+    
+    let brightness = fragment.intensity * (0.6 + clouds * 0.2);
+    
+    Color::from_float(
+        final_color.r as f32 / 255.0 * brightness,
+        final_color.g as f32 / 255.0 * brightness,
+        final_color.b as f32 / 255.0 * brightness,
+    )
+}
+
+// Shader 5: Desert Planet (Mars-like)
+fn desert_planet_shader(fragment: &Fragment) -> Color {
+    // Layer 1: Base rust colors
+    let rust_light = Color::from_float(0.8, 0.4, 0.2);
+    let rust_dark = Color::from_float(0.5, 0.2, 0.1);
+    let rust_sand = Color::from_float(0.9, 0.6, 0.3);
+    
+    // Layer 2: Terrain variation
+    let terrain_pos = Vec3::new(
+        fragment.position.x * 3.0,
+        fragment.position.y * 3.0,
+        fragment.position.z * 3.0,
+    );
+    let terrain = fbm(&terrain_pos, 5);
+    
+    let base_color = if terrain < 0.3 {
+        rust_dark.mix(&rust_light, terrain * 3.3)
+    } else if terrain < 0.7 {
+        rust_light.mix(&rust_sand, (terrain - 0.3) * 2.5)
+    } else {
+        rust_sand.mix(&rust_dark, (terrain - 0.7) * 3.3)
+    };
+    
+    // Layer 3: Canyon and crater systems
+    let crater_pos = Vec3::new(
+        fragment.position.x * 8.0,
+        fragment.position.y * 8.0,
+        fragment.position.z * 8.0,
+    );
+    let craters = turbulence(&crater_pos, 3);
+    let crater_effect = (craters - 0.7).max(0.0) * 3.0;
+    
+    // Layer 4: Polar ice caps
+    let polar = fragment.position.y.abs();
+    let ice_threshold = 0.7;
+    let ice_color = Color::from_float(0.95, 0.95, 1.0);
+    let has_ice = polar > ice_threshold;
+    let ice_amount = if has_ice {
+        ((polar - ice_threshold) / (1.0 - ice_threshold)).clamp(0.0, 1.0)
+    } else {
+        0.0
+    };
+    
+    let mut final_color = base_color;
+    
+    // Apply crater darkening
+    final_color = Color::from_float(
+        (final_color.r as f32 / 255.0 * (1.0 - crater_effect * 0.3)).clamp(0.0, 1.0),
+        (final_color.g as f32 / 255.0 * (1.0 - crater_effect * 0.3)).clamp(0.0, 1.0),
+        (final_color.b as f32 / 255.0 * (1.0 - crater_effect * 0.3)).clamp(0.0, 1.0),
+    );
+    
+    // Apply ice caps
+    final_color = final_color.mix(&ice_color, ice_amount * 0.8);
+    
+    let brightness = fragment.intensity * (0.5 + terrain * 0.3);
+    
+    Color::from_float(
+        final_color.r as f32 / 255.0 * brightness,
+        final_color.g as f32 / 255.0 * brightness,
+        final_color.b as f32 / 255.0 * brightness,
+    )
+}
+
+// Shader 6: Volcanic Planet (Io-like)
+fn volcanic_planet_shader(fragment: &Fragment) -> Color {
+    // Layer 1: Base yellow-orange sulfur surface
+    let sulfur_yellow = Color::from_float(0.9, 0.8, 0.2);
+    let sulfur_orange = Color::from_float(0.8, 0.5, 0.1);
+    let sulfur_white = Color::from_float(0.95, 0.9, 0.7);
+    
+    let surface_pos = Vec3::new(
+        fragment.position.x * 2.5,
+        fragment.position.y * 2.5,
+        fragment.position.z * 2.5,
+    );
+    let surface_variation = fbm(&surface_pos, 4);
+    
+    let base_color = if surface_variation < 0.4 {
+        sulfur_yellow.mix(&sulfur_orange, surface_variation * 2.5)
+    } else {
+        sulfur_orange.mix(&sulfur_white, (surface_variation - 0.4) * 1.67)
+    };
+    
+    // Layer 2: Volcanic hotspots (glowing lava)
+    let volcano_pos = Vec3::new(
+        fragment.position.x * 6.0,
+        fragment.position.y * 6.0,
+        fragment.position.z * 6.0 + fragment.time * 0.5,
+    );
+    let volcano_noise = turbulence(&volcano_pos, 4);
+    let is_hotspot = volcano_noise > 0.75;
+    let hotspot_intensity = if is_hotspot {
+        ((volcano_noise - 0.75) * 4.0).clamp(0.0, 1.0)
+    } else {
+        0.0
+    };
+    
+    // Layer 3: Lava flows
+    let lava_pos = Vec3::new(
+        fragment.position.x * 10.0,
+        fragment.position.y * 10.0 + fragment.time * 0.3,
+        fragment.position.z * 10.0,
+    );
+    let lava_flow = fbm(&lava_pos, 3);
+    let is_lava = lava_flow > 0.65;
+    let lava_amount = if is_lava {
+        ((lava_flow - 0.65) * 2.86).clamp(0.0, 1.0)
+    } else {
+        0.0
+    };
+    
+    // Layer 4: Atmospheric glow from volcanic gases
+    let edge_intensity = 1.0 - fragment.normal.dot(&Vec3::new(0.0, 0.0, 1.0)).abs();
+    let atmosphere_glow = edge_intensity.powf(2.0) * 0.3;
+    
+    let mut final_color = base_color;
+    
+    // Apply lava flows (red-orange)
+    let lava_color = Color::from_float(1.0, 0.3, 0.0);
+    final_color = final_color.mix(&lava_color, lava_amount * 0.7);
+    
+    // Apply volcanic hotspots (bright orange-red)
+    let hotspot_color = Color::from_float(1.0, 0.5, 0.0);
+    final_color = final_color.mix(&hotspot_color, hotspot_intensity * 0.9);
+    
+    let brightness = fragment.intensity * (0.7 + hotspot_intensity * 0.8 + atmosphere_glow);
+    
+    Color::from_float(
+        final_color.r as f32 / 255.0 * brightness * (1.0 + hotspot_intensity * 0.5),
+        final_color.g as f32 / 255.0 * brightness * (1.0 + hotspot_intensity * 0.3),
+        final_color.b as f32 / 255.0 * brightness,
+    )
+}
+
 fn generate_sphere(radius: f32, segments: usize) -> Vec<Vec3> {
     let mut vertices = Vec::new();
 
@@ -481,6 +676,24 @@ fn main() {
     save_ppm("screenshots/gas_giant.ppm", &gas_buffer).unwrap();
     println!("✓ Gas Giant saved");
     
-    println!("\nAll renders complete! Check the screenshots/ directory.");
-    println!("Note: PPM files can be viewed with image viewers or converted to PNG.");
+    // Render Ice Giant
+    println!("Rendering Ice Giant...");
+    let ice_buffer = render_sphere(&sphere_vertices, 50, ice_giant_shader, 4.0, 0.3);
+    save_ppm("screenshots/ice_giant.ppm", &ice_buffer).unwrap();
+    println!("✓ Ice Giant saved");
+    
+    // Render Desert Planet
+    println!("Rendering Desert Planet...");
+    let desert_buffer = render_sphere(&sphere_vertices, 50, desert_planet_shader, 1.5, 1.8);
+    save_ppm("screenshots/desert_planet.ppm", &desert_buffer).unwrap();
+    println!("✓ Desert Planet saved");
+    
+    // Render Volcanic Planet
+    println!("Rendering Volcanic Planet...");
+    let volcanic_buffer = render_sphere(&sphere_vertices, 50, volcanic_planet_shader, 3.0, 0.7);
+    save_ppm("screenshots/volcanic_planet.ppm", &volcanic_buffer).unwrap();
+    println!("✓ Volcanic Planet saved");
+    
+    println!("\nAll renders complete! 6 planets total.");
+    println!("Check the screenshots/ directory.");
 }
